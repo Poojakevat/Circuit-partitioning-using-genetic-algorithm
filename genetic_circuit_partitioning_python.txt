@@ -1,0 +1,183 @@
+import matplotlib.pyplot as plt
+import random
+import numpy as np
+
+##In file_to_graph filename is input and it splits text file contents by
+##space (for different columns) and enter(for different row);it also removes
+##'space' from input file as space can't be converted into number;
+##it appends elements row wise in matrix; outer loop is for raw and inner loop
+##is for column. It gives output as matrix and its dimentions as no of nodes and edges.
+
+def file_to_graph(filename):
+    circuit_matrix = []
+    with open(filename, "r") as f:
+        for line in f.readlines():
+            row = []
+            #print(line)
+            for x in line.split("\n"):
+                x.replace("\n", "")
+                for y in x.split(" "):
+                    if(y!=""):
+                        z = int(y)
+                        row.append(y)
+            circuit_matrix.append(row)
+            del(row)
+    E = len(circuit_matrix)
+    N = len(circuit_matrix[0])
+    #print(circuit_matrix)
+    #print ('\n', E,'\n', N)
+    return circuit_matrix, E, N
+
+##partition_gen function creates random partitions of nodes in graph
+def partition_gen(file_in):
+    in_matrix, E, N = file_to_graph(file_in)
+    mask = []
+    for i in range(N):
+        if (i<(N/2)):
+            mask.append(0)
+        else:
+            mask.append(1)
+    random.shuffle(mask)
+    part_a = []
+    part_b = []
+    for i in range(N):
+        if(mask[i]== 0):
+            part_a.append(i)
+        else:
+            part_b.append(i)
+    #print(mask,'\n',part_a,'\n',part_b)
+    x = len(part_a)
+    y = len(part_b)
+    ext = 0
+    internal = 0
+    for i in range(E):
+        for j in range(x):
+            ext += int(in_matrix [i][part_a[j]])
+        for k in range(y):
+            internal += int(in_matrix[i][part_b[k]])
+    gain = ext - internal
+    #print(gain,'\n', ext, '\n', internal)
+    return part_a, part_b, gain
+
+def initial_gen(file):
+    list_a = []
+    list_b = []
+    list_g = []
+    for i in range(10):
+        a, b, g = partition_gen(file)
+        list_a.append(a)
+        list_b.append(b)
+        list_g.append(g)
+    #plt.plot(list_g)
+    #plt.show()
+    #print(list_g)
+    return list_a, list_b, list_g
+
+def fitness_cal(l_a, l_b, l_g):
+    g = list.copy(l_g)
+    g.sort()
+    index = []
+    sorted_a = []
+    sorted_b = []
+    sorted_g = []
+    for i in range(len(g)):
+        for j in range(len(l_g)):
+            if g[i] == l_g[j]:
+                index.append(j)
+                for k in range(len(index)-2):
+                    if index[len(index)-1]== index[k]:
+                        index.remove(index[len(index)-1])
+    for i in range(len(index)):
+        #print(l_a[index[i]],'\n',l_b[index[i]],'\n',l_g[index[i]])
+        sorted_a.append(l_a[index[i]])
+        sorted_b.append(l_b[index[i]])
+        sorted_g.append(l_g[index[i]])
+    return sorted_a, sorted_b, sorted_g, index
+
+##in mutation probability for swapping node in part a and b length
+##of only part a is considered since in case of odd number of nodes
+##length of partition a would be smaller
+
+def mutate(sorted_a, sorted_b, mutationRate):
+    x = random.choice(range(len(sorted_a[0])))
+    y = random.choice(range(len(sorted_b[0])))
+    for swapped in range(len(sorted_a)):
+        if(random.random() < mutationRate):
+            mutant_a = sorted_a[swapped][x]
+            mutant_b = sorted_b[swapped][y]
+            sorted_a[swapped][x] = mutant_b
+            sorted_b[swapped][y]= mutant_a
+    #print(x, '\n', y, '\n',sorted_a,'\n',sorted_b)
+    m_a = sorted_a
+    m_b = sorted_b
+    return m_a, m_b
+
+def crossover(sorted_a, sorted_b):
+    x = [int(len(sorted_a[0])/2),int((len(sorted_a[0])/2)+1)] 
+    y = [int(len(sorted_b[0])/2),int((len(sorted_b[0])/2)+1)]
+    for swapped in range(len(sorted_a)):
+        for i in range(len(x)):
+            cross_a = sorted_a[swapped][x[i]]
+            cross_b = sorted_b[swapped][y[i]]
+            sorted_a[swapped][x[i]] = cross_b
+            sorted_b[swapped][y[i]]= cross_a
+    #print(x, '\n', y, '\n',sorted_a,'\n',sorted_b)
+    c_a = sorted_a
+    c_b = sorted_b
+    return c_a, c_b
+
+file = "circuit_graph.txt"
+mat, E, N = file_to_graph(file)
+#print(mat, '\n',E,'\n', N)
+l_a, l_b, l_g = initial_gen(file)
+s_a, s_b, s_g, index = fitness_cal(l_a, l_b, l_g)
+mutated_a, mutated_b = mutate(l_a, l_b, 0.06)
+child_a, child_b = crossover(l_a, l_b)
+population_a_global = np.concatenate((l_a, mutated_a,child_a))
+population_b_global = np.concatenate((l_b, mutated_b,child_b))
+gain = []
+for i in range(len(population_a_global)):
+    x = len(population_a_global[0])
+    y = len(population_b_global[0])
+    ext = 0
+    internal = 0
+    g = 0
+    for j in range(E):
+        for k in range(x):
+            ext += int(mat [j][population_a_global[i][k]])
+        for l in range(y):
+            internal += int(mat[j][population_b_global[i][l]])
+        g += ext- internal
+    gain.append(g)
+    
+g = list.copy(gain)
+g.sort()
+#print(g)
+index = []
+sorted_a = []
+sorted_b = []
+sorted_g = []
+for i in range(len(g)):
+    for j in range(len(gain)):
+        if g[i] == gain[j]:
+            index.append(j)
+            for k in range(len(index)-2):
+                if index[len(index)-1]== index[k]:
+                    index.remove(index[len(index)-1])
+                    
+for i in range(len(index)):
+    #print(population_a_global[index[i]])
+    sorted_a.append(population_a_global[index[i]])
+    sorted_b.append(population_b_global[index[i]])
+    sorted_g.append(gain[index[i]])
+#print(sorted_a,'\n',sorted_b,'\n',sorted_g)
+print('\n',"best partition choice is:",'\n',"partition_a = ",sorted_a[len(sorted_a)-1],'\n', "partition_b =", sorted_b[len(sorted_b)-1],)
+print('\n', 'gain = ',sorted_g[len(sorted_g)-1])
+plt.plot(gain)
+plt.xlabel('Index of Iteration')
+plt.ylabel('Gain')
+#plt.grid()
+plt.savefig('gain_figure.png')
+plt.show()
+
+#return sorted_a, sorted_b, sorted_g, index
